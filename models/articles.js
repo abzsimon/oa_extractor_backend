@@ -16,6 +16,9 @@ const articleSchema = new Schema({
     type: [String],
     required: true,
   },
+  authorsFullNames: { 
+    type: [String], 
+    required: true },
   abstract: {
     type: String,
     default: "No Abstract",
@@ -205,9 +208,9 @@ const articleSchema = new Schema({
       "H Frein éthique-socio",
       "I Frein liberté académique",
       "J Autres freins",
-      "Aucun frein mentionné"
+      "Aucun frein mentionné",
     ],
-    required: true
+    required: true,
   },
   positionOnOpenAccessAndIssues: {
     type: [String],
