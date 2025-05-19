@@ -2,83 +2,26 @@ const express = require("express");
 const router = express.Router();
 const Article = require("../models/articles");
 
-// Utilitaire de gestion d'erreur
+// Erreur générique
 const handleError = (err, res) => {
-  let status = 500;
-  if (err.code === 11000) status = 409; // Duplicate key
-  else if (err.name === "ValidationError" || err.code === 121) status = 400;
-  else if (err.code === 13 || err.code === 18) status = 401;
-  res.status(status).json({
+  res.status(500).json({
     error: err.name || "MongoError",
     message: err.message,
-    ...(err.code && { code: err.code }),
-    ...(err.keyValue && { keyValue: err.keyValue }),
   });
 };
 
-// GET /articles - liste avec pagination, tri simple, et quelques filtres possibles
+// GET /articles — obtenir tous les articles (tout le schéma, aucune coupe)
 router.get("/", async (req, res) => {
   try {
-    const {
-      limit = 50,
-      skip = 0,
-      sort = "title",
-      language,
-      objectFocus,
-      oa_status,
-      keyword,
-      author,
-    } = req.query;
-
-    let query = Article.find();
-
-    if (language) query = query.where("language").equals(language);
-    if (objectFocus) query = query.where("objectFocus").equals(objectFocus);
-    if (oa_status !== undefined)
-      query = query.where("oa_status").equals(oa_status === "true");
-    if (keyword) query = query.where("keywords").in([keyword]);
-    if (author) query = query.where("authors").in([author]);
-
-    query = query.select(
-      "id title authors pubyear language keywords objectFocus oa_status"
-    );
-
-    const sortField = sort.startsWith("-") ? sort : sort;
-    query = query.sort(sortField).skip(Number(skip)).limit(Number(limit));
-
-    const articles = await query.exec();
-
-    const countQuery = Article.find();
-    if (language) countQuery.where("language").equals(language);
-    if (objectFocus) countQuery.where("objectFocus").equals(objectFocus);
-    if (oa_status !== undefined)
-      countQuery.where("oa_status").equals(oa_status === "true");
-    if (keyword) countQuery.where("keywords").in([keyword]);
-    if (author) countQuery.where("authors").in([author]);
-    const total = await countQuery.countDocuments();
-
-    res.status(200).json({
-      data: articles,
-      meta: {
-        total,
-        limit: Number(limit),
-        skip: Number(skip),
-        hasMore: total > Number(skip) + articles.length,
-        filters: {
-          language: language || null,
-          objectFocus: objectFocus || null,
-          oa_status: oa_status !== undefined ? oa_status : null,
-          keyword: keyword || null,
-          author: author || null,
-        },
-      },
-    });
+    // Optionnel : tri par date de création/début, ou custom
+    const articles = await Article.find({}).sort({ pubyear: -1 }).lean();
+    res.status(200).json({ data: articles, total: articles.length });
   } catch (err) {
     handleError(err, res);
   }
 });
 
-// GET /articles/:id - un article par son id (OpenAlex)
+// GET /articles/:id — obtenir un article par son id (tout le schéma, aucune coupe)
 router.get("/:id", async (req, res) => {
   try {
     const article = await Article.findOne({ id: req.params.id }).lean();
@@ -87,11 +30,11 @@ router.get("/:id", async (req, res) => {
     }
     res.status(200).json(article);
   } catch (err) {
-    res.status(500).json({ message: "Erreur serveur", error: err.message });
+    handleError(err, res);
   }
 });
 
-// POST /articles - créer un article
+// POST /articles — ajouter un article
 router.post("/", async (req, res) => {
   try {
     const article = new Article(req.body);
@@ -103,7 +46,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT /articles/:id - remplacer un article existant (PUT = remplace tout)
+// PUT /articles/:id — mettre à jour tout l'article
 router.put("/:id", async (req, res) => {
   try {
     const article = await Article.findOne({ id: req.params.id });
@@ -118,7 +61,7 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE /articles/:id - supprimer un article par son id
+// DELETE /articles/:id — supprimer l'article
 router.delete("/:id", async (req, res) => {
   try {
     const deleted = await Article.findOneAndDelete({ id: req.params.id });
@@ -130,10 +73,7 @@ router.delete("/:id", async (req, res) => {
       article: deleted,
     });
   } catch (err) {
-    res.status(500).json({
-      error: err.name || "MongoError",
-      message: err.message,
-    });
+    handleError(err, res);
   }
 });
 
