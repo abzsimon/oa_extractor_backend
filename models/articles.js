@@ -16,9 +16,10 @@ const articleSchema = new Schema({
     type: [String],
     required: true,
   },
-  authorsFullNames: { 
-    type: [String], 
-    required: true },
+  authorsFullNames: {
+    type: [String],
+    required: true,
+  },
   abstract: {
     type: String,
     default: "No Abstract",
@@ -78,6 +79,7 @@ const articleSchema = new Schema({
     type: [String],
     required: true,
   },
+  openAccess: { type: Boolean, required: true },
   objectFocus: {
     type: String,
     enum: [
@@ -135,6 +137,10 @@ const articleSchema = new Schema({
       "Données non spécifiées",
     ],
     required: true,
+  },
+  additionalDataTypes: {
+    type: [String],
+    default: [],
   },
   discourseGenre: {
     type: [String],
