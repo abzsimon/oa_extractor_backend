@@ -3,8 +3,8 @@ const Joi = require('joi');
 const passwordComplexity = require('joi-password-complexity');
 
 const complexityOptions = {
-  min: 8,
-  max: 30,
+  min: 10,
+  max: 60,
   lowerCase: 1,
   upperCase: 1,
   numeric: 1,
@@ -48,6 +48,13 @@ const registerSchema = Joi.object({
     .optional()
     .messages({
       'array.base': 'projectIds doit être un tableau d’ObjectId sous forme de chaînes.',
+    }),
+
+  role: Joi.string()
+    .valid('user', 'admin')
+    .default('user')
+    .messages({
+      'any.only': 'Le rôle doit être "user" ou "admin".',
     }),
 });
 

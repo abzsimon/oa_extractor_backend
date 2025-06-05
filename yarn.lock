@@ -569,6 +569,11 @@ mongodb@~6.15.0:
     bson "^6.10.3"
     mongodb-connection-string-url "^3.0.0"
 
+mongoose-field-encryption@^7.0.1:
+  version "7.0.1"
+  resolved "https://registry.yarnpkg.com/mongoose-field-encryption/-/mongoose-field-encryption-7.0.1.tgz#6d5bfcbbc7a5bfae3e0b7e4afaaae58c649a10b1"
+  integrity sha512-PWNn1EkmtF8Sjguioe/TpW+6CWmNQwcQpKD3UAUVM1JtPmb4jOA7WqIQVJZCsnQuOqhBfCcpVvOJdOTvB6Q9dQ==
+
 mongoose@^8.13.2:
   version "8.13.2"
   resolved "https://registry.npmjs.org/mongoose/-/mongoose-8.13.2.tgz"

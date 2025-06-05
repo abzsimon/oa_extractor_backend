@@ -10,6 +10,7 @@ var authRouter = require('./routes/auth');
 var authorsRouter = require('./routes/authors')
 var articlesRouter = require('./routes/articles')
 var backupRouter = require('./routes/backup')
+var projectsRouter = require('./routes/projects')
 
 var app = express();
 const cors = require('cors');
@@ -26,5 +27,6 @@ app.use('/auth', authRouter);
 app.use('/authors', authorsRouter);
 app.use("/articles", articlesRouter);
 app.use("/backup", backupRouter)
+app.use("/projects", projectsRouter )
 
 module.exports = app;

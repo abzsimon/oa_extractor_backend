@@ -1,3 +1,4 @@
+// models/authors.js
 const mongoose = require("mongoose");
 
 // 🧩 Topics
@@ -54,12 +55,10 @@ const authorSchema = new mongoose.Schema(
       type: String,
       validate: {
         validator: function (v) {
-          // Autorise undefined, null, ou chaîne vide
           if (!v) return true;
-          // Sinon, doit correspondre au format ORCID
           return /^(\d{4}-){3}\d{3}[\dX]$/.test(v);
         },
-        message: "orcid invalide",
+        message: "ORCID invalide",
       },
     },
     display_name: String,
@@ -85,10 +84,15 @@ const authorSchema = new mongoose.Schema(
     annotation: {
       type: String,
     },
+
+    // → Champ supplémentaire : on lie chaque auteur à un projet
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      required: true,
+    },
   },
   { timestamps: true }
 );
 
-const Author = mongoose.model("authors", authorSchema);
-
-module.exports = Author;
+module.exports = mongoose.model("Author", authorSchema);
