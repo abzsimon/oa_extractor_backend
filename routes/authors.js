@@ -37,7 +37,7 @@ const handleError = (err, res) => {
  * Retourne tous les auteurs pour le projet donné, sans filtres ni sélection de champs.
  * projectId est obligatoire.
  */
-router.get("/", async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
     const { projectId } = req.query;
 
@@ -61,7 +61,7 @@ router.get("/", async (req, res) => {
  * Récupère un auteur (oa_id) pour le projet indiqué.
  * projectId dans la query est obligatoire.
  */
-router.get("/:oa_id", async (req, res) => {
+router.get("/:oa_id", authenticateToken, async (req, res) => {
   try {
     const { oa_id } = req.params;
     const { projectId } = req.query;

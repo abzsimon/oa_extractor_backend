@@ -224,19 +224,19 @@ const articleSchema = new Schema(
       ],
       required: true,
     },
-    positionOnOpenAccessAndIssues: {
-      type: [String],
-      enum: [
-        "Favoriser la réutilisation des données",
-        "Favoriser l'intégrité, contre la fraude",
-        "Favorise la cause écologique, environnement",
-        "Favorise la publication libre",
-        "Favorise la restitution à la société",
-        "Autre",
-        "Aucune",
-      ],
-      required: true,
-    },
+positionOnOpenAccessAndIssues: {
+  type: [String],
+  enum: [
+    "Favoriser la réutilisation des données",
+    "Favoriser l'intégrité, contre la fraude",
+    "Favorise une science incrémentale et non redondante",
+    "Favorise la publication libre",
+    "Favorise la restitution à la société",
+    "Autre",
+    "Aucune",
+  ],
+  required: true,
+},
     remarks: {
       type: String,
       default: "",
