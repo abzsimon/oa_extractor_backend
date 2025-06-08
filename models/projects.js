@@ -129,7 +129,7 @@ const ProjectSchema = new Schema(
   }
 );
 
-// Plugin pour chiffrer les champs sensibles
+// Plugin pour chiffrer les champs sensibles. Ne pas oubblier de mettre la clé dans les variables d'environnement sous vercel !
 ProjectSchema.plugin(fieldEncryption, {
   fields: ['gitlabToken', 'gitlabBackupProjectId'],
   secret: process.env.FIELD_ENCRYPTION_KEY
