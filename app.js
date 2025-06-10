@@ -14,6 +14,7 @@ var backupRouter = require('./routes/backup');
 var projectsRouter = require('./routes/projects');
 var authorsStatsRouter = require('./routes/authors-stats');
 var articlesStatsRouter = require('./routes/articles-stats'); 
+var csv = require('./routes/csv')
 
 var app = express();
 const cors = require('cors');
@@ -33,5 +34,6 @@ app.use("/backup", backupRouter);
 app.use("/projects", projectsRouter);
 app.use("/authorstats", authorsStatsRouter); 
 app.use("/articleStats", articlesStatsRouter); 
+app.use("/csv", csv)
 
 module.exports = app;
