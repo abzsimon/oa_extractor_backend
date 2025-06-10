@@ -76,15 +76,15 @@ const articleSchema = new Schema(
     language: {
       type: String,
       enum: ["FR", "EN", "ES", "DE", "IT", "PT", "Autre"],
-      required: true,
+      default: null,
     },
     keywords: {
       type: [String],
-      required: true,
+      default: [],
     },
     openAccess: {
       type: Boolean,
-      required: true,
+      default: null,
     },
     objectFocus: {
       type: String,
@@ -93,7 +93,7 @@ const articleSchema = new Schema(
         "Données de la recherche en SHS",
         "SHS en général",
       ],
-      required: true,
+      default: null,
     },
     dataTypesDiscussed: {
       type: [String],
@@ -142,7 +142,7 @@ const articleSchema = new Schema(
         "Autres/Objet informatique (plateforme, interface...)",
         "Données non spécifiées",
       ],
-      required: true,
+      default: [],
     },
     additionalDataTypes: {
       type: [String],
@@ -159,7 +159,7 @@ const articleSchema = new Schema(
         "Etudes institutionnelles (ministère, université...)",
         "Autre",
       ],
-      required: true,
+      default: [],
     },
     methodology: {
       type: [String],
@@ -181,7 +181,7 @@ const articleSchema = new Schema(
         "Monographie (1 seul cas)",
         "Aucune relevée",
       ],
-      required: true,
+      default: [],
     },
     funding: {
       type: String,
@@ -193,7 +193,7 @@ const articleSchema = new Schema(
         "Autre",
         "Non relevé",
       ],
-      required: true,
+      default: null,
     },
     positionOnDataOpenAccess: {
       type: String,
@@ -205,7 +205,7 @@ const articleSchema = new Schema(
         "Faveur forte (injonction)",
         "Indéfini",
       ],
-      required: true,
+      default: null,
     },
     barriers: {
       type: [String],
@@ -222,24 +222,28 @@ const articleSchema = new Schema(
         "J Autres freins",
         "Aucun frein mentionné",
       ],
-      required: true,
+      default: [],
     },
-positionOnOpenAccessAndIssues: {
-  type: [String],
-  enum: [
-    "Favoriser la réutilisation des données",
-    "Favoriser l'intégrité, contre la fraude",
-    "Favorise une science incrémentale et non redondante",
-    "Favorise la publication libre",
-    "Favorise la restitution à la société",
-    "Autre",
-    "Aucune",
-  ],
-  required: true,
-},
+    positionOnOpenAccessAndIssues: {
+      type: [String],
+      enum: [
+        "Favoriser la réutilisation des données",
+        "Favoriser l'intégrité, contre la fraude",
+        "Favorise une science incrémentale et non redondante",
+        "Favorise la publication libre",
+        "Favorise la restitution à la société",
+        "Autre",
+        "Aucune",
+      ],
+      default: [],
+    },
     remarks: {
       type: String,
-      default: "",
+      default: null,
+    },
+    completionRate: {
+      type: Number,
+      default: 0,
     },
 
     // === Champ ajouté pour rattacher chaque article à un projet ===

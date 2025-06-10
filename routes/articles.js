@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Article = require("../models/articles");
 const { authenticateToken } = require("../utils/jwtauth");
+const { computeCompletionRate } = require("../utils/completionRate");
 
 // Erreur générique
 const handleError = (err, res) => {
@@ -63,7 +64,9 @@ router.get("/:id", authenticateToken, async (req, res) => {
 
     const article = await Article.findOne({ id, projectId }).lean();
     if (!article) {
-      return res.status(404).json({ message: "Article non trouvé pour ce projet." });
+      return res
+        .status(404)
+        .json({ message: "Article non trouvé pour ce projet." });
     }
 
     // Retourner l'article trouvé
@@ -154,6 +157,10 @@ router.post("/", authenticateToken, async (req, res) => {
       remarks,
       projectId,
     });
+
+    // 🔧 Calcul du taux de remplissage
+    newArticle.completionRate = computeCompletionRate(newArticle);
+
     await newArticle.validate();
     const saved = await newArticle.save();
     res.status(201).json(saved);
@@ -183,10 +190,16 @@ router.put("/:id", authenticateToken, async (req, res) => {
 
     const article = await Article.findOne({ id, projectId });
     if (!article) {
-      return res.status(404).json({ message: "Article non trouvé pour ce projet." });
+      return res
+        .status(404)
+        .json({ message: "Article non trouvé pour ce projet." });
     }
 
     article.set(req.body);
+
+    // 🔧 Met à jour le taux de complétion en fonction des nouvelles données
+    article.completionRate = computeCompletionRate(article);
+    
     await article.save();
     res.status(200).json(article);
   } catch (err) {
@@ -214,7 +227,9 @@ router.delete("/:id", authenticateToken, async (req, res) => {
 
     const deleted = await Article.findOneAndDelete({ id, projectId });
     if (!deleted) {
-      return res.status(404).json({ message: "Article non trouvé pour ce projet." });
+      return res
+        .status(404)
+        .json({ message: "Article non trouvé pour ce projet." });
     }
     return res.status(200).json({
       message: "Article supprimé avec succès pour ce projet.",
