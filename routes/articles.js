@@ -1,3 +1,7 @@
+// routes/articles.js
+
+// CRUD ARTICLES 
+
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
@@ -5,21 +9,110 @@ const Article = require("../models/articles");
 const { authenticateToken } = require("../utils/jwtauth");
 const { computeCompletionRate } = require("../utils/completionRate");
 
-// Erreur générique
+// // --- Utilitaire d'erreur ---
+// const handleError = (err, res) => {
+//   res.status(500).json({
+//     error: err.name || "MongoError",
+//     message: err.message,
+//   });
+// };
+
+// Utilitaire pour mapper les erreurs Mongo vers un code HTTP approprié (on trouve exactement le même dans articles.js)
 const handleError = (err, res) => {
-  res.status(500).json({
+  let status = 500;
+
+  if (err.code === 11000) {
+    // Violation d'unicité d'index (duplication de clé)
+    status = 409;
+  } else if (err.name === "ValidationError" || err.code === 121) {
+    // Erreur de validation Mongoose
+    status = 400;
+  } else if (err.code === 13 || err.code === 18) {
+    // Erreur d'authentification/permissions
+    status = 401;
+  }
+
+  return res.status(status).json({
     error: err.name || "MongoError",
     message: err.message,
+    ...(err.code && { code: err.code }),
+    ...(err.keyValue && { keyValue: err.keyValue }),
   });
 };
 
-/**
- * GET /articles?projectId=...
- *
- * Retourne tous les articles du projet spécifié.
- * projectId est obligatoire.
- * Utilisation du middleware authenticateToken pour vérifier le token
- */
+// ------------------------------------------------------------------
+// GET /articles/search?title=...&projectId=...
+// Recherche d'articles par titre (fuzzy) pour un projet donné
+// ------------------------------------------------------------------
+router.get("/search", authenticateToken, async (req, res) => {
+  console.log("✅ Route /articles/search atteinte");
+  
+  try {
+    const { title, projectId } = req.query;
+    
+    // Validation des paramètres
+    const trimmedTitle = title?.trim();
+    if (!trimmedTitle || !projectId) {
+      return res.status(400).json({ 
+        message: "Les paramètres 'title' et 'projectId' sont requis." 
+      });
+    }
+    
+    // Validation de l'ObjectId MongoDB
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ 
+        message: "Le paramètre 'projectId' n'est pas un ObjectId valide." 
+      });
+    }
+    
+    // Normalisation et échappement pour la recherche
+    const normalizedTitle = trimmedTitle
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    
+    // Échapper les caractères spéciaux regex
+    const escapedTitle = normalizedTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Créer les patterns de recherche
+    const exactRegex = new RegExp(escapedTitle, "i");
+    const fuzzyRegex = new RegExp(escapedTitle.split(' ').join('.*'), 'i');
+    
+    console.log("🔍 Recherche avec titre:", trimmedTitle);
+    console.log("🔍 Titre normalisé:", normalizedTitle);
+    
+    // Recherche avec plusieurs stratégies
+    const matches = await Article.find({
+      projectId,
+      $or: [
+        { title: { $regex: exactRegex } },
+        { title: { $regex: fuzzyRegex } }
+      ]
+    })
+    .limit(10)
+    .lean();
+    
+    console.log(`✅ ${matches.length} article(s) trouvé(s)`);
+    
+    return res.status(200).json({
+      success: true,
+      count: matches.length,
+      articles: matches
+    });
+    
+  } catch (err) {
+    console.error("❌ Erreur /articles/search :", err);
+    return res.status(500).json({ 
+      success: false,
+      message: "Erreur interne du serveur", 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+});
+
+// ------------------------------------------------------------------
+// GET /articles?projectId=...
+// Tous les articles d’un projet
+// ------------------------------------------------------------------
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const { projectId } = req.query;
@@ -31,25 +124,20 @@ router.get("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "projectId invalide." });
     }
 
-    // Trouver tous les articles pour ce projet
     const articles = await Article.find({ projectId })
       .sort({ pubyear: -1 })
       .lean();
 
-    // Retourner directement le tableau d'articles
     res.status(200).json(articles);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-/**
- * GET /articles/:id?projectId=...
- *
- * Récupère un article par son champ `id` pour le projet donné.
- * projectId en query est obligatoire.
- * Utilisation du middleware authenticateToken pour vérifier le token
- */
+// ------------------------------------------------------------------
+// GET /articles/:id?projectId=...
+// Article par ID interne (champ `id`) pour un projet
+// ------------------------------------------------------------------
 router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -69,20 +157,16 @@ router.get("/:id", authenticateToken, async (req, res) => {
         .json({ message: "Article non trouvé pour ce projet." });
     }
 
-    // Retourner l'article trouvé
     res.status(200).json(article);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-/**
- * POST /articles
- *
- * Crée un nouvel article pour un projet donné.
- * Body JSON doit contenir obligatoirement `projectId`.
- * Utilisation du middleware authenticateToken pour vérifier le token
- */
+// ------------------------------------------------------------------
+// POST /articles
+// Création d’un article manuel
+// ------------------------------------------------------------------
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const {
@@ -116,6 +200,7 @@ router.post("/", authenticateToken, async (req, res) => {
       positionOnOpenAccessAndIssues,
       remarks,
       projectId,
+      source
     } = req.body;
 
     if (!projectId) {
@@ -156,9 +241,9 @@ router.post("/", authenticateToken, async (req, res) => {
       positionOnOpenAccessAndIssues,
       remarks,
       projectId,
+      source
     });
 
-    // 🔧 Calcul du taux de remplissage
     newArticle.completionRate = computeCompletionRate(newArticle);
 
     await newArticle.validate();
@@ -169,13 +254,10 @@ router.post("/", authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * PUT /articles/:id
- *
- * Met à jour entièrement un article (par son champ `id`) pour le projet donné.
- * projectId en query est obligatoire.
- * Utilisation du middleware authenticateToken pour vérifier le token
- */
+// ------------------------------------------------------------------
+// PUT /articles/:id?projectId=...
+// Mise à jour complète d’un article
+// ------------------------------------------------------------------
 router.put("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -196,10 +278,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     article.set(req.body);
-
-    // 🔧 Met à jour le taux de complétion en fonction des nouvelles données
     article.completionRate = computeCompletionRate(article);
-    
+
     await article.save();
     res.status(200).json(article);
   } catch (err) {
@@ -207,12 +287,10 @@ router.put("/:id", authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * DELETE /articles/:id
- *
- * Supprime un article pour le projet donné.
- * Utilisation du middleware authenticateToken pour vérifier le token
- */
+// ------------------------------------------------------------------
+// DELETE /articles/:id?projectId=...
+// Suppression d’un article
+// ------------------------------------------------------------------
 router.delete("/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
@@ -231,7 +309,8 @@ router.delete("/:id", authenticateToken, async (req, res) => {
         .status(404)
         .json({ message: "Article non trouvé pour ce projet." });
     }
-    return res.status(200).json({
+
+    res.status(200).json({
       message: "Article supprimé avec succès pour ce projet.",
       article: deleted,
     });

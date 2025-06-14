@@ -1,6 +1,5 @@
 // routes/authors.js
-
-// CRUD AUTEURS 
+// CRUD AUTEURS
 
 const express = require("express");
 const router = express.Router();
@@ -8,20 +7,13 @@ const mongoose = require("mongoose");
 const Author = require("../models/authors");
 const { authenticateToken } = require("../utils/jwtauth");
 
-// Utilitaire pour mapper les erreurs Mongo vers un code HTTP approprié (on trouve exactement le même dans articles.js)
+/* -------- utilitaire de gestion d’erreurs Mongo -------- */
 const handleError = (err, res) => {
   let status = 500;
 
-  if (err.code === 11000) {
-    // Violation d'unicité d'index (duplication de clé)
-    status = 409;
-  } else if (err.name === "ValidationError" || err.code === 121) {
-    // Erreur de validation Mongoose
-    status = 400;
-  } else if (err.code === 13 || err.code === 18) {
-    // Erreur d'authentification/permissions
-    status = 401;
-  }
+  if (err.code === 11000) status = 409; // duplicata
+  else if (err.name === "ValidationError" || err.code === 121) status = 400;
+  else if (err.code === 13 || err.code === 18) status = 401; // auth
 
   return res.status(status).json({
     error: err.name || "MongoError",
@@ -31,68 +23,163 @@ const handleError = (err, res) => {
   });
 };
 
-/**
- * GET /authors?projectId=...
- *
- * Retourne tous les auteurs pour le projet donné, sans filtres ni sélection de champs.
- * projectId est obligatoire.
- */
-router.get("/", authenticateToken, async (req, res) => {
+/* ---------------------------------------------------------
+   GET /authors/search?display_name=...&projectId=...
+   Recherche par nom (fuzzy) pour un projet
+--------------------------------------------------------- */
+router.get("/search", authenticateToken, async (req, res) => {
   try {
-    const { projectId } = req.query;
+    const { display_name, projectId } = req.query;
+    const trimmedName = display_name?.trim();
 
-    if (!projectId) {
-      return res.status(400).json({ message: "projectId manquant." });
+    if (!trimmedName || !projectId) {
+      return res.status(400).json({
+        message: "Les paramètres 'display_name' et 'projectId' sont requis.",
+      });
     }
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      return res.status(400).json({ message: "projectId invalide." });
+      return res
+        .status(400)
+        .json({ message: "'projectId' n'est pas un ObjectId valide." });
     }
 
-    const authors = await Author.find({ projectId });
-    return res.status(200).json(authors);
+    const normalized = trimmedName
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const exact = new RegExp(escaped, "i");
+    const fuzzy = new RegExp(escaped.split(" ").join(".*"), "i");
+
+    const matches = await Author.find({
+      projectId,
+      $or: [
+        { display_name: { $regex: exact } },
+        { display_name: { $regex: fuzzy } },
+      ],
+    })
+      .limit(10)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: matches.length,
+      authors: matches,
+    });
   } catch (err) {
     handleError(err, res);
   }
 });
 
-/**
- * GET /authors/:oa_id?projectId=...
- *
- * Récupère un auteur (oa_id) pour le projet indiqué.
- * projectId dans la query est obligatoire.
- */
-router.get("/:oa_id", authenticateToken, async (req, res) => {
+/* ---------------------------------------------------------
+   GET /authors?projectId=...
+   Retourne tous les auteurs du projet
+--------------------------------------------------------- */
+router.get("/", authenticateToken, async (req, res) => {
   try {
-    const { oa_id } = req.params;
+    const { projectId } = req.query;
+    if (!projectId)
+      return res.status(400).json({ message: "projectId manquant." });
+    if (!mongoose.Types.ObjectId.isValid(projectId))
+      return res.status(400).json({ message: "projectId invalide." });
+
+    const authors = await Author.find({ projectId });
+    res.status(200).json(authors);
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+/* ---------------------------------------------------------
+   GET /authors/:id?projectId=...
+   Récupère un auteur par id pour le projet
+--------------------------------------------------------- */
+router.get("/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
     const { projectId } = req.query;
 
-    if (!projectId) {
-      return res.status(400).json({ message: "projectId manquant en query." });
-    }
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (!projectId)
+      return res.status(400).json({ message: "projectId manquant." });
+    if (!mongoose.Types.ObjectId.isValid(projectId))
       return res.status(400).json({ message: "projectId invalide." });
-    }
 
-    const author = await Author.findOne({ oa_id, projectId }).lean();
-    if (!author) {
-      return res.status(404).json({ message: "Auteur non trouvé pour ce projet." });
-    }
+    const author = await Author.findOne({ id, projectId }).lean();
+    if (!author) return res.status(404).json({ message: "Auteur non trouvé." });
+
     res.status(200).json(author);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-/**
- * POST /authors
- *
- * Crée un auteur pour un projet donné.
- * Body JSON doit contenir obligatoirement `projectId`.
- */
+/* ---------------------------------------------------------
+   POST /authors/bulk
+   Upsert d’un tableau d’auteurs (au moment de la création manuelle d'un article avec des auteurs, ajoutés manuellement ou récupérés depuis OpenAlex, pour éviter les erreurs de synchronisation)
+--------------------------------------------------------- */
+router.post("/bulk", authenticateToken, async (req, res) => {
+  try {
+    const authors = req.body; // tableau [{ id, display_name, projectId, ... }]
+
+    if (!Array.isArray(authors) || authors.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Le corps doit être un tableau non vide." });
+    }
+
+    // 1️⃣  Vérifications rapides + construction des opérations
+    const ops = [];
+    for (const a of authors) {
+      if (!a.projectId || !mongoose.Types.ObjectId.isValid(a.projectId)) {
+        return res
+          .status(400)
+          .json({
+            message: "Chaque auteur doit contenir un projectId valide.",
+          });
+      }
+      if (!a.id || !a.display_name) {
+        return res
+          .status(400)
+          .json({
+            message: "Chaque auteur doit avoir 'id' et 'display_name'.",
+          });
+      }
+
+      ops.push({
+        updateOne: {
+          filter: { id: a.id, projectId: a.projectId },
+          update: { $setOnInsert: a }, // ⚠️ change en $set: a si tu veux MAJ
+          upsert: true,
+        },
+      });
+    }
+
+    // 2️⃣  Exécution en masse
+    const result = await Author.bulkWrite(ops, { ordered: false });
+
+    /* result example :
+       { nInserted, nUpserted, nMatched, nModified, nUpserted, nExisting, ... }
+    */
+    res.status(200).json({
+      ok: true,
+      created: result.upsertedCount ?? 0,
+      skipped: result.nMatched ?? 0,
+      total: authors.length,
+    });
+  } catch (err) {
+    handleError(err, res); // ta fonction existante
+  }
+});
+
+/* ---------------------------------------------------------
+   POST /authors
+   Création d’un auteur (corps JSON + projectId)
+--------------------------------------------------------- */
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const {
-      oa_id,
+      id,
+      source,
       orcid,
       display_name,
       cited_by_count,
@@ -112,15 +199,14 @@ router.post("/", authenticateToken, async (req, res) => {
       projectId,
     } = req.body;
 
-    if (!projectId) {
+    if (!projectId)
       return res.status(400).json({ message: "projectId manquant." });
-    }
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (!mongoose.Types.ObjectId.isValid(projectId))
       return res.status(400).json({ message: "projectId invalide." });
-    }
 
     const newAuthor = new Author({
-      oa_id,
+      id,
+      source,
       orcid,
       display_name,
       cited_by_count,
@@ -139,35 +225,31 @@ router.post("/", authenticateToken, async (req, res) => {
       annotation,
       projectId,
     });
+
     await newAuthor.validate();
     const saved = await newAuthor.save();
-    return res.status(201).json(saved);
+    res.status(201).json(saved);
   } catch (err) {
     handleError(err, res);
   }
 });
 
-/**
- * PUT /authors/:oa_id?projectId=...
- *
- * Remplace un auteur pour ce projet. Body JSON contient les champs à mettre à jour.
- */
-router.put("/:oa_id", authenticateToken, async (req, res) => {
+/* ---------------------------------------------------------
+   PUT /authors/:id?projectId=...
+   Mise à jour complète d’un auteur
+--------------------------------------------------------- */
+router.put("/:id", authenticateToken, async (req, res) => {
   try {
-    const { oa_id } = req.params;
+    const { id } = req.params;
     const { projectId } = req.query;
 
-    if (!projectId) {
-      return res.status(400).json({ message: "projectId manquant en query." });
-    }
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (!projectId)
+      return res.status(400).json({ message: "projectId manquant." });
+    if (!mongoose.Types.ObjectId.isValid(projectId))
       return res.status(400).json({ message: "projectId invalide." });
-    }
 
-    const author = await Author.findOne({ oa_id, projectId });
-    if (!author) {
-      return res.status(404).json({ message: "Auteur non trouvé pour ce projet." });
-    }
+    const author = await Author.findOne({ id, projectId });
+    if (!author) return res.status(404).json({ message: "Auteur non trouvé." });
 
     author.set(req.body);
     await author.save();
@@ -177,36 +259,30 @@ router.put("/:oa_id", authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * DELETE /authors/:oa_id?projectId=...
- *
- * Supprime l’auteur pour ce projet.
- */
-router.delete("/:oa_id", authenticateToken, async (req, res) => {
+/* ---------------------------------------------------------
+   DELETE /authors/:id?projectId=...
+   Suppression d’un auteur
+--------------------------------------------------------- */
+router.delete("/:id", authenticateToken, async (req, res) => {
   try {
-    const { oa_id } = req.params;
+    const { id } = req.params;
     const { projectId } = req.query;
 
-    if (!projectId) {
-      return res.status(400).json({ message: "projectId manquant en query." });
-    }
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+    if (!projectId)
+      return res.status(400).json({ message: "projectId manquant." });
+    if (!mongoose.Types.ObjectId.isValid(projectId))
       return res.status(400).json({ message: "projectId invalide." });
-    }
 
-    const deleted = await Author.findOneAndDelete({ oa_id, projectId });
-    if (!deleted) {
-      return res.status(404).json({ message: "Auteur non trouvé pour ce projet." });
-    }
+    const deleted = await Author.findOneAndDelete({ id, projectId });
+    if (!deleted)
+      return res.status(404).json({ message: "Auteur non trouvé." });
+
     res.status(200).json({
-      message: "Auteur supprimé avec succès pour ce projet.",
+      message: "Auteur supprimé avec succès.",
       author: deleted,
     });
   } catch (err) {
-    res.status(500).json({
-      error: err.name || "MongoError",
-      message: err.message,
-    });
+    handleError(err, res);
   }
 });
 

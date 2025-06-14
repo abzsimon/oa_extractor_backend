@@ -1,6 +1,8 @@
 // models/authors.js
 const mongoose = require("mongoose");
 
+/* ----------------------- Sous-schémas ----------------------- */
+
 // 🧩 Topics
 const topicSchema = new mongoose.Schema({
   name: String,
@@ -28,33 +30,47 @@ const domainSchema = new mongoose.Schema({
   fields: [fieldSchema],
 });
 
-// topTagsSchema
+// Top tags
 const topTagsSchema = new mongoose.Schema({
   name: String,
   percentage: Number,
 });
 
+// Types de documents
 const docTypeSchema = new mongoose.Schema({
   name: { type: String, required: true },
   quantity: { type: Number, default: 0 },
 });
 
-// 👤 Author
+/* --------------------------- Auteur ------------------------- */
+
 const authorSchema = new mongoose.Schema(
   {
-    oa_id: {
+    // Identifiant unique : A######## (OpenAlex) OU MA-XXXXXXXXX (manuel)
+    id: {
       type: String,
       required: true,
       unique: true,
       validate: {
-        validator: (v) => /A\d{8,10}/.test(v),
-        message: "identifiant auteur OpenAlex invalide",
+        validator: (v) => /^A\d{8,10}$/.test(v) || /^MA-\w{9,11}$/.test(v),
+        message:
+          "Identifiant invalide : attendu A######## ou MA-XXXXXXXXX",
       },
     },
+
+    // Origine des données
+    source: {
+      type: String,
+      required: true,
+      default: "openalex",
+      enum: ["openalex", "manual"],
+    },
+
+    // --- Métadonnées ---
     orcid: {
       type: String,
       validate: {
-        validator: function (v) {
+        validator(v) {
           if (!v) return true;
           return /^(\d{4}-){3}\d{3}[\dX]$/.test(v);
         },
@@ -81,11 +97,9 @@ const authorSchema = new mongoose.Schema(
       type: String,
       enum: ["A", "B", "C", "D", "E", "F", "G", "H"],
     },
-    annotation: {
-      type: String,
-    },
+    annotation: String,
 
-    // → Champ supplémentaire : on lie chaque auteur à un projet
+    // Lien vers le projet
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
@@ -94,5 +108,9 @@ const authorSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Index unique combiné (id, projectId)
+authorSchema.index({ id:1, projectId:1 }, { unique:true });
+authorSchema.index({ display_name: 'text' })
 
 module.exports = mongoose.model("Author", authorSchema);

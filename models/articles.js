@@ -1,76 +1,52 @@
-// models/articles.js
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
+const { Schema } = mongoose;
+
+// Sous-schéma pour un frein
+const freinSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"],
+      required: true,
+    },
+    citation: {
+      type: String,
+      required: true,
+    },
+    paragraphe: {
+      type: String,
+    },
+  },
+  { _id: false }
+);
 
 const articleSchema = new Schema(
   {
+    // === Source de l'article ===
+    source: {
+      type: String,
+      required: true,
+      default: "openalex",
+      enum: ["openalex", "manual"],
+    },
+
     // === OpenAlex Data ===
-    id: {
-      type: String,
-      required: true,
-      // Retirer `unique: true` si vous souhaitez autoriser plusieurs projets à partager le même id OpenAlex.
-      // Pour garantir l’unicité id+projectId, ajoutez plutôt un index composé (voir plus bas).
-    },
-    title: {
-      type: String,
-      required: true,
-    },
-    authors: {
-      type: [String],
-      required: true,
-    },
-    authorsFullNames: {
-      type: [String],
-      required: true,
-    },
-    abstract: {
-      type: String,
-      default: "No Abstract",
-    },
-    publishedIn: {
-      type: String,
-      default: "None",
-    },
-    url: {
-      type: String,
-      default: "None",
-    },
-    doi: {
-      type: String,
-      default: "None",
-    },
-    pubyear: {
-      type: Number,
-      default: null,
-    },
-    pdfRelativePath: {
-      type: String,
-      default: "None",
-    },
-    referenceType: {
-      type: String,
-      required: true,
-    },
-    oa_status: {
-      type: Boolean,
-      required: true,
-    },
-    topics: {
-      type: [String],
-      default: [],
-    },
-    domains: {
-      type: [String],
-      default: [],
-    },
-    fields: {
-      type: [String],
-      default: [],
-    },
-    subfields: {
-      type: [String],
-      default: [],
-    },
+    id: { type: String, required: true },
+    title: { type: String, required: true },
+    authors: { type: [String], required: true },
+    authorsFullNames: { type: [String], required: true },
+    abstract: { type: String, default: "No Abstract" },
+    publishedIn: { type: String, default: "None" },
+    url: { type: String, default: "None" },
+    doi: { type: String, default: "None" },
+    pubyear: { type: Number, default: null },
+    pdfRelativePath: { type: String, default: "None" },
+    referenceType: { type: String, required: true },
+    oa_status: { type: Boolean, required: true },
+    topics: { type: [String], default: [] },
+    domains: { type: [String], default: [] },
+    fields: { type: [String], default: [] },
+    subfields: { type: [String], default: [] },
 
     // === User-Input Data ===
     language: {
@@ -78,14 +54,9 @@ const articleSchema = new Schema(
       enum: ["FR", "EN", "ES", "DE", "IT", "PT", "Autre"],
       default: null,
     },
-    keywords: {
-      type: [String],
-      default: [],
-    },
-    openAccess: {
-      type: Boolean,
-      default: null,
-    },
+    selectedSubfield : { type: String, default: null },
+    keywords: { type: [String], default: [] },
+    openAccess: { type: Boolean, default: null },
     objectFocus: {
       type: String,
       enum: [
@@ -98,21 +69,21 @@ const articleSchema = new Schema(
     dataTypesDiscussed: {
       type: [String],
       enum: [
-        "Observation en général",
+        "Observation/Observation en général",
         "Observation/Notes",
         "Observation/Photo",
         "Observation/Audio",
         "Observation/Vidéo",
-        "Questionnaire en général",
+        "Questionnaire/Questionnaire en général",
         "Questionnaire/Questions",
         "Questionnaire/Réponses",
         "Questionnaire/Statistiques",
-        "Entretien en général",
+        "Entretien/Entretien en général",
         "Entretien/Audio",
         "Entretien/Vidéo",
         "Entretien/Transcription",
         "Entretien/Grille",
-        "Analyse computationnelle en général",
+        "Analyse computationnelle/Analyse computationnelle en général",
         "Analyse computationnelle/Corpus textuel",
         "Analyse computationnelle/Réseaux",
         "Analyse computationnelle/Logs",
@@ -122,7 +93,7 @@ const articleSchema = new Schema(
         "Analyse computationnelle/Code",
         "Analyse computationnelle/Corpus d'images",
         "Analyse computationnelle/Documentation complémentaire",
-        "Archive en général",
+        "Archive/Archive en général",
         "Archive/Sources textuelles",
         "Archive/Sources visuelles (plans, cadastres, relevés archéo...)",
         "Archive/Photographies",
@@ -130,13 +101,13 @@ const articleSchema = new Schema(
         "Archive/Mesures numériques",
         "Archive/Tableaux, sculptures, bâti...",
         "Archive/Autres (partitions musicales...)",
-        "Expérimentation en général",
+        "Expérimentation/Expérimentation en général",
         "Expérimentation/Audio",
         "Expérimentation/Vidéo",
         "Expérimentation/Transcriptions",
         "Expérimentation/Notes",
         "Expérimentation/Mesures numériques",
-        "Autres",
+        "Autres/Autres",
         "Autres/Brouillons",
         "Autres/Carnets",
         "Autres/Objet informatique (plateforme, interface...)",
@@ -144,10 +115,7 @@ const articleSchema = new Schema(
       ],
       default: [],
     },
-    additionalDataTypes: {
-      type: [String],
-      default: [],
-    },
+    additionalDataTypes: { type: [String], default: [] },
     discourseGenre: {
       type: [String],
       enum: [
@@ -196,7 +164,7 @@ const articleSchema = new Schema(
       default: null,
     },
     positionOnDataOpenAccess: {
-      type: String,
+      type: [String],
       enum: [
         "Opposition forte (rejet)",
         "Opposition (mise en garde)",
@@ -205,7 +173,11 @@ const articleSchema = new Schema(
         "Faveur forte (injonction)",
         "Indéfini",
       ],
-      default: null,
+      validate: {
+        validator: function (v) { return Array.isArray(v) && v.length <= 2; },
+        message: (props) => `Au maximum 2 choix, mais ${props.value.length} fournis.`
+      },
+      default: [],
     },
     barriers: {
       type: [String],
@@ -220,10 +192,11 @@ const articleSchema = new Schema(
         "H Frein éthique-socio",
         "I Frein liberté académique",
         "J Autres freins",
-        "Aucun frein mentionné",
+        "K Aucun frein mentionné",
       ],
       default: [],
     },
+    remarksOnBarriers: { type: [freinSchema], default: [] },
     positionOnOpenAccessAndIssues: {
       type: [String],
       enum: [
@@ -237,28 +210,17 @@ const articleSchema = new Schema(
       ],
       default: [],
     },
-    remarks: {
-      type: String,
-      default: null,
-    },
-    completionRate: {
-      type: Number,
-      default: 0,
-    },
+    remarks: { type: String, default: null },
+    completionRate: { type: Number, default: 0 },
+    fulltext: { type: String, default: null },
 
     // === Champ ajouté pour rattacher chaque article à un projet ===
-    projectId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Project",
-      required: true,
-    },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
   },
   { timestamps: true }
 );
 
-// Crée un index unique combiné (optionnel) pour empêcher deux fois le même (id, projectId)
+// Index unique combiné (id, projectId)
 articleSchema.index({ id: 1, projectId: 1 }, { unique: true });
 
-const Article = mongoose.model("articles", articleSchema);
-
-module.exports = Article;
+module.exports = mongoose.model("articles", articleSchema);

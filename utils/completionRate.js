@@ -11,6 +11,7 @@ function computeCompletionRate(article) {
     "barriers",
     "positionOnOpenAccessAndIssues",
     "remarks",
+    "selectedSubfield",
   ];
 
   const isFilled = val => {
