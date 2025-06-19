@@ -1,4 +1,5 @@
 // routes/authors.js
+
 // CRUD AUTEURS
 
 const express = require("express");
@@ -6,14 +7,23 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Author = require("../models/authors");
 const { authenticateToken } = require("../utils/jwtauth");
+const { computeAuthorCompletionRate } = require("../utils/completionRate");
 
-/* -------- utilitaire de gestion d’erreurs Mongo -------- */
+// Utilitaire pour mapper les erreurs Mongo vers un code HTTP approprié (on trouve exactement le même dans authors.js)
+
 const handleError = (err, res) => {
   let status = 500;
 
-  if (err.code === 11000) status = 409; // duplicata
-  else if (err.name === "ValidationError" || err.code === 121) status = 400;
-  else if (err.code === 13 || err.code === 18) status = 401; // auth
+  if (err.code === 11000) {
+    // Violation d'unicité d'index (duplication de clé)
+    status = 409;
+  } else if (err.name === "ValidationError" || err.code === 121) {
+    // Erreur de validation Mongoose
+    status = 400;
+  } else if (err.code === 13 || err.code === 18) {
+    // Erreur d'authentification/permissions
+    status = 401;
+  }
 
   return res.status(status).json({
     error: err.name || "MongoError",
@@ -131,18 +141,14 @@ router.post("/bulk", authenticateToken, async (req, res) => {
     const ops = [];
     for (const a of authors) {
       if (!a.projectId || !mongoose.Types.ObjectId.isValid(a.projectId)) {
-        return res
-          .status(400)
-          .json({
-            message: "Chaque auteur doit contenir un projectId valide.",
-          });
+        return res.status(400).json({
+          message: "Chaque auteur doit contenir un projectId valide.",
+        });
       }
       if (!a.id || !a.display_name) {
-        return res
-          .status(400)
-          .json({
-            message: "Chaque auteur doit avoir 'id' et 'display_name'.",
-          });
+        return res.status(400).json({
+          message: "Chaque auteur doit avoir 'id' et 'display_name'.",
+        });
       }
 
       ops.push({
@@ -226,6 +232,8 @@ router.post("/", authenticateToken, async (req, res) => {
       projectId,
     });
 
+    newAuthor.completionRate = computeAuthorCompletionRate(newAuthor);
+
     await newAuthor.validate();
     const saved = await newAuthor.save();
     res.status(201).json(saved);
@@ -252,6 +260,8 @@ router.put("/:id", authenticateToken, async (req, res) => {
     if (!author) return res.status(404).json({ message: "Auteur non trouvé." });
 
     author.set(req.body);
+    author.completionRate = computeAuthorCompletionRate(author);
+
     await author.save();
     res.status(200).json(author);
   } catch (err) {

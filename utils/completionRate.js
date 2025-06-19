@@ -1,4 +1,4 @@
-function computeCompletionRate(article) {
+function computeArticleCompletionRate(article) {
   const keysToCheck = [
     "language",
     "keywords",
@@ -25,4 +25,22 @@ function computeCompletionRate(article) {
   return Math.round((filledCount / keysToCheck.length) * 100);
 };
 
-module.exports = { computeCompletionRate }
+function computeAuthorCompletionRate(author) {
+  const keysToCheck = [
+    "gender",
+    "status",
+    "annotation"
+  ];
+
+  const isFilled = val => {
+    if (val === null || val === undefined) return false;
+    if (Array.isArray(val)) return val.length > 0;
+    if (typeof val === "string") return val.trim().length > 0;
+    return true;
+  };
+
+  const filledCount = keysToCheck.filter(key => isFilled(author[key])).length;
+  return Math.round((filledCount / keysToCheck.length) * 100);
+};
+
+module.exports = { computeAuthorCompletionRate, computeArticleCompletionRate }

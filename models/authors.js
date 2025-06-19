@@ -52,9 +52,8 @@ const authorSchema = new mongoose.Schema(
       required: true,
       unique: true,
       validate: {
-        validator: (v) => /^A\d{8,10}$/.test(v) || /^MA-\w{9,11}$/.test(v),
-        message:
-          "Identifiant invalide : attendu A######## ou MA-XXXXXXXXX",
+        validator: (v) => /^A\d{8,11}$/.test(v) || /^MA-\w{8,11}$/.test(v),
+        message: "Identifiant invalide : attendu A######## ou MA-XXXXXXXXX",
       },
     },
 
@@ -98,6 +97,7 @@ const authorSchema = new mongoose.Schema(
       enum: ["A", "B", "C", "D", "E", "F", "G", "H"],
     },
     annotation: String,
+    completionRate: { type: Number, default: 0 },
 
     // Lien vers le projet
     projectId: {
@@ -110,7 +110,7 @@ const authorSchema = new mongoose.Schema(
 );
 
 // Index unique combiné (id, projectId)
-authorSchema.index({ id:1, projectId:1 }, { unique:true });
-authorSchema.index({ display_name: 'text' })
+authorSchema.index({ id: 1, projectId: 1 }, { unique: true });
+authorSchema.index({ display_name: "text" });
 
 module.exports = mongoose.model("Author", authorSchema);

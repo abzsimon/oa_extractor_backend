@@ -7,17 +7,10 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Article = require("../models/articles");
 const { authenticateToken } = require("../utils/jwtauth");
-const { computeCompletionRate } = require("../utils/completionRate");
-
-// // --- Utilitaire d'erreur ---
-// const handleError = (err, res) => {
-//   res.status(500).json({
-//     error: err.name || "MongoError",
-//     message: err.message,
-//   });
-// };
+const { computeArticleCompletionRate } = require("../utils/completionRate");
 
 // Utilitaire pour mapper les erreurs Mongo vers un code HTTP approprié (on trouve exactement le même dans articles.js)
+
 const handleError = (err, res) => {
   let status = 500;
 
@@ -244,7 +237,7 @@ router.post("/", authenticateToken, async (req, res) => {
       source
     });
 
-    newArticle.completionRate = computeCompletionRate(newArticle);
+    newArticle.completionRate = computeArticleCompletionRate(newArticle);
 
     await newArticle.validate();
     const saved = await newArticle.save();
@@ -278,7 +271,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
     }
 
     article.set(req.body);
-    article.completionRate = computeCompletionRate(article);
+    article.completionRate = computeArticleCompletionRate(article);
 
     await article.save();
     res.status(200).json(article);
