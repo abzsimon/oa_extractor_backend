@@ -1,6 +1,6 @@
 // routes/articles.js
 
-// CRUD ARTICLES 
+// CRUD ARTICLES
 
 const express = require("express");
 const router = express.Router();
@@ -39,65 +39,64 @@ const handleError = (err, res) => {
 // ------------------------------------------------------------------
 router.get("/search", authenticateToken, async (req, res) => {
   console.log("✅ Route /articles/search atteinte");
-  
+
   try {
     const { title, projectId } = req.query;
-    
+
     // Validation des paramètres
     const trimmedTitle = title?.trim();
     if (!trimmedTitle || !projectId) {
-      return res.status(400).json({ 
-        message: "Les paramètres 'title' et 'projectId' sont requis." 
+      return res.status(400).json({
+        message: "Les paramètres 'title' et 'projectId' sont requis.",
       });
     }
-    
+
     // Validation de l'ObjectId MongoDB
     if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      return res.status(400).json({ 
-        message: "Le paramètre 'projectId' n'est pas un ObjectId valide." 
+      return res.status(400).json({
+        message: "Le paramètre 'projectId' n'est pas un ObjectId valide.",
       });
     }
-    
+
     // Normalisation et échappement pour la recherche
     const normalizedTitle = trimmedTitle
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
-    
+
     // Échapper les caractères spéciaux regex
-    const escapedTitle = normalizedTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
+    const escapedTitle = normalizedTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
     // Créer les patterns de recherche
     const exactRegex = new RegExp(escapedTitle, "i");
-    const fuzzyRegex = new RegExp(escapedTitle.split(' ').join('.*'), 'i');
-    
+    const fuzzyRegex = new RegExp(escapedTitle.split(" ").join(".*"), "i");
+
     console.log("🔍 Recherche avec titre:", trimmedTitle);
     console.log("🔍 Titre normalisé:", normalizedTitle);
-    
+
     // Recherche avec plusieurs stratégies
     const matches = await Article.find({
       projectId,
       $or: [
         { title: { $regex: exactRegex } },
-        { title: { $regex: fuzzyRegex } }
-      ]
+        { title: { $regex: fuzzyRegex } },
+      ],
     })
-    .limit(10)
-    .lean();
-    
+      .limit(10)
+      .lean();
+
     console.log(`✅ ${matches.length} article(s) trouvé(s)`);
-    
+
     return res.status(200).json({
       success: true,
       count: matches.length,
-      articles: matches
+      articles: matches,
     });
-    
   } catch (err) {
     console.error("❌ Erreur /articles/search :", err);
-    return res.status(500).json({ 
+    return res.status(500).json({
       success: false,
-      message: "Erreur interne du serveur", 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      message: "Erreur interne du serveur",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined,
     });
   }
 });
@@ -193,7 +192,7 @@ router.post("/", authenticateToken, async (req, res) => {
       positionOnOpenAccessAndIssues,
       remarks,
       projectId,
-      source
+      source,
     } = req.body;
 
     if (!projectId) {
@@ -234,7 +233,7 @@ router.post("/", authenticateToken, async (req, res) => {
       positionOnOpenAccessAndIssues,
       remarks,
       projectId,
-      source
+      source,
     });
 
     newArticle.completionRate = computeArticleCompletionRate(newArticle);
@@ -306,6 +305,96 @@ router.delete("/:id", authenticateToken, async (req, res) => {
     res.status(200).json({
       message: "Article supprimé avec succès pour ce projet.",
       article: deleted,
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// ------------------------------------------------------------------
+// DELETE /articles/:id/authors/:authorId?projectId=...
+// Retire un auteur spécifique d’un article (sans supprimer l’auteur)
+// ------------------------------------------------------------------
+router.delete("/:id/authors/:authorId", authenticateToken, async (req, res) => {
+  try {
+    const { id, authorId } = req.params;
+    const { projectId } = req.query;
+
+    if (!projectId) {
+      return res.status(400).json({ message: "projectId manquant." });
+    }
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: "projectId invalide." });
+    }
+
+    const article = await Article.findOne({ id, projectId });
+    if (!article) {
+      return res.status(404).json({ message: "Article non trouvé." });
+    }
+
+    const initialLength = article.authors.length;
+
+    // Supprimer authorId et le nom associé
+    article.authors = article.authors.filter((aid) => aid !== authorId);
+    article.authorsFullNames = article.authorsFullNames.filter(
+      (_, idx) => article.authors[idx] !== authorId
+    );
+
+    if (article.authors.length === initialLength) {
+      return res
+        .status(404)
+        .json({ message: "Auteur non associé à cet article." });
+    }
+
+    article.completionRate = computeArticleCompletionRate(article);
+    await article.save();
+
+    return res.status(200).json({
+      message: "Auteur retiré de l’article.",
+      authors: article.authors,
+      authorsFullNames: article.authorsFullNames,
+    });
+  } catch (err) {
+    handleError(err, res);
+  }
+});
+
+// ------------------------------------------------------------------
+// PATCH /articles/:id/authors?projectId=...
+// Met à jour uniquement authors et authorsFullNames
+// ------------------------------------------------------------------
+router.patch("/:id/authors", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { projectId } = req.query;
+    const { authors, authorsFullNames } = req.body;
+
+    if (!projectId) {
+      return res.status(400).json({ message: "projectId manquant en query." });
+    }
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+      return res.status(400).json({ message: "projectId invalide." });
+    }
+    if (!Array.isArray(authors) || !Array.isArray(authorsFullNames)) {
+      return res
+        .status(400)
+        .json({ message: "authors et authorsFullNames doivent être des tableaux." });
+    }
+
+    const article = await Article.findOne({ id, projectId });
+    if (!article) {
+      return res.status(404).json({ message: "Article non trouvé." });
+    }
+
+    article.authors = authors;
+    article.authorsFullNames = authorsFullNames;
+    article.completionRate = computeArticleCompletionRate(article);
+
+    await article.save();
+    res.status(200).json({
+      message: "Auteurs mis à jour avec succès.",
+      authors: article.authors,
+      authorsFullNames: article.authorsFullNames,
     });
   } catch (err) {
     handleError(err, res);

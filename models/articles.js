@@ -33,7 +33,7 @@ const articleSchema = new Schema(
     // === OpenAlex Data ===
     id: { type: String, required: true },
     title: { type: String, required: true },
-    authors: { type: [String], required: true },
+    authors: [{ type: String, ref: "Author", required: true }],
     authorsFullNames: { type: [String], required: true },
     abstract: { type: String, default: "No Abstract" },
     publishedIn: { type: String, default: "None" },
@@ -54,7 +54,7 @@ const articleSchema = new Schema(
       enum: ["FR", "EN", "ES", "DE", "IT", "PT", "Autre"],
       default: null,
     },
-    selectedSubfield : { type: String, default: null },
+    selectedSubfield: { type: String, default: null },
     keywords: { type: [String], default: [] },
     openAccess: { type: Boolean, default: null },
     objectFocus: {
@@ -174,8 +174,11 @@ const articleSchema = new Schema(
         "Indéfini",
       ],
       validate: {
-        validator: function (v) { return Array.isArray(v) && v.length <= 2; },
-        message: (props) => `Au maximum 2 choix, mais ${props.value.length} fournis.`
+        validator: function (v) {
+          return Array.isArray(v) && v.length <= 2;
+        },
+        message: (props) =>
+          `Au maximum 2 choix, mais ${props.value.length} fournis.`,
       },
       default: [],
     },

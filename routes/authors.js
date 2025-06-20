@@ -6,6 +6,7 @@ const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
 const Author = require("../models/authors");
+const Article = require("../models/articles");
 const { authenticateToken } = require("../utils/jwtauth");
 const { computeAuthorCompletionRate } = require("../utils/completionRate");
 
@@ -97,6 +98,42 @@ router.get("/", authenticateToken, async (req, res) => {
     res.status(200).json(authors);
   } catch (err) {
     handleError(err, res);
+  }
+});
+
+/* ---------------------------------------------------------
+   GET /authors/:id/articles?projectId=...
+   Récupère tous les articles associés à un auteur (via son id)
+--------------------------------------------------------- */
+router.get("/:id/articles", authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { projectId } = req.query;
+
+  console.log("📥 Requête reçue /authors/:id/articles", { id, projectId });
+
+  if (!projectId)
+    return res.status(400).json({ message: "projectId manquant." });
+  if (!mongoose.Types.ObjectId.isValid(projectId))
+    return res.status(400).json({ message: "projectId invalide." });
+
+  try {
+    const articles = await Article.find({ authors: id, projectId })
+      .populate({
+        path: "authors",
+        model: "Author",
+        match: { projectId },
+        localField: "authors",
+        foreignField: "id",
+      })
+      .lean();
+
+    res.status(200).json(articles);
+  } catch (err) {
+    console.error("❌ Erreur dans /authors/:id/articles:", err);
+    return res.status(500).json({
+      message: "Erreur serveur dans la récupération des articles.",
+      error: err.message,
+    });
   }
 });
 
